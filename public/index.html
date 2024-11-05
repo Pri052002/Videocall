@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" href="/favicon.ico" type="image/x-icon">
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Video Chat</title>
+    <style>
+        video {
+            width: 45%;
+            margin: 20px;
+        }
+        #localVideo {
+            border: 2px solid blue;
+        }
+        #remoteVideo {
+            border: 2px solid red;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebRTC Video Chat</h1>
+    <div>
+        <video id="localVideo" autoplay muted></video>
+        <video id="remoteVideo" autoplay></video>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let localStream;
+        let remoteStream;
+        let peerConnection;
+        const configuration = {
+            iceServers: [
+                {
+                    urls: 'stun:stun.l.google.com:19302'
+                }
+            ]
+        };
+
+        const localVideo = document.getElementById('localVideo');
+        const remoteVideo = document.getElementById('remoteVideo');
+
+        async function startCall() {
+    try {
+        localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+        localVideo.srcObject = localStream;
+
+        peerConnection = new RTCPeerConnection(configuration);
+        remoteStream = new MediaStream();
+
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        peerConnection.onicecandidate = (event) => {
+            if (event.candidate) {
+                socket.emit('signal', { to: 'remoteUserId', signal: event.candidate });
+            }
+        };
+
+        peerConnection.ontrack = (event) => {
+            remoteStream.addTrack(event.track);
+            remoteVideo.srcObject = remoteStream;
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        socket.emit('signal', { to: 'remoteUserId', signal: offer });
+    } catch (error) {
+        console.error('Error starting the call: ', error);
+        alert('Unable to access the camera or microphone. Please check if they are in use by another application.');
+    }
+}
+
+
+        startCall();
+    </script>
+</body>
+</html>
